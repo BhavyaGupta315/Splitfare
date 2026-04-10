@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.turbo/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+coverage/
+.next/
+.expo/
+
+.claude/
+CLAUDE.md
+claude.md
+SETUP.md
+Understanding/

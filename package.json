@@ -1,0 +1,19 @@
+{
+  "name": "splitfare",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "typecheck": "turbo typecheck",
+    "db:generate": "pnpm --filter @splitfare/db generate",
+    "db:migrate": "pnpm --filter @splitfare/db migrate",
+    "db:push": "pnpm --filter @splitfare/db push"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.0"
+  }
+}

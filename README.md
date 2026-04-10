@@ -1,6 +1,6 @@
 # SplitFare
 
-Split expenses with friends and groups — simple, fast, and fair.
+Split expenses with friends and groups - simple, fast, and fair.
 
 ## Features
 

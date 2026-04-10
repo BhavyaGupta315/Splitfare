@@ -57,6 +57,7 @@ model Expense {
   groupId     String
   paidBy      String
   amount      Float
+  currency    String    @default("INR")
   description String
   splitType   SplitType @default(EQUAL)
   createdAt   DateTime  @default(now())

@@ -5,6 +5,7 @@ import { AppError } from "../config/app-error.js";
 export async function createExpense(input: {
   groupId: string;
   amount: number;
+  currency: string;
   description: string;
   paidBy: string;
   participants?: string[];
@@ -41,6 +42,7 @@ export async function createExpense(input: {
       groupId: input.groupId,
       paidBy: input.paidBy,
       amount: input.amount,
+      currency: input.currency,
       description: input.description,
       splitType: "EQUAL",
       splits: {
@@ -65,7 +67,7 @@ export async function getGroupExpenses(groupId: string, userId: string) {
 
   return prisma.expense.findMany({
     where: { groupId },
-    include: { splits: true, payer: true },
+    include: { splits: { include: { user: true } }, payer: true },
     orderBy: { createdAt: "desc" },
   });
 }

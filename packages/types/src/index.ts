@@ -32,6 +32,7 @@ export interface Expense {
   groupId: string;
   paidBy: string;
   amount: number;
+  currency: string;
   description: string;
   splitType: SplitType;
   createdAt: Date;

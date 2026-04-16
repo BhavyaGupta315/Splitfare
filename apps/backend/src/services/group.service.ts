@@ -14,6 +14,14 @@ export async function createGroup(name: string, userId: string) {
   });
 }
 
+export async function getUserGroups(userId: string) {
+  return prisma.group.findMany({
+    where: { members: { some: { userId } } },
+    include: { _count: { select: { members: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 export async function getGroupById(groupId: string, userId: string) {
   const group = await prisma.group.findUnique({
     where: { id: groupId },

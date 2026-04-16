@@ -46,3 +46,14 @@ export async function upsertUser(profile: {
 export function issueJwt(userId: string, email: string): string {
   return jwt.sign({ userId, email }, env.JWT_SECRET, { expiresIn: "7d" });
 }
+
+export async function getUserById(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, name: true },
+  });
+  if (!user) {
+    throw new AppError("NOT_FOUND", "User not found", 404);
+  }
+  return user;
+}

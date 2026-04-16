@@ -16,36 +16,22 @@ export async function getGroupBalances(groupId: string, userId: string) {
     include: { splits: { where: { settled: false } } },
   });
 
-  // Positive = is owed money, Negative = owes money
+  // Positive = is owed money (creditor), Negative = owes money (debtor)
   const netMap = new Map<string, number>();
 
   for (const expense of expenses) {
-    // Payer is owed the total minus their own share
-    for (const split of expense.splits) {
-      if (split.userId === expense.paidBy) {
-        // Payer's net goes up by (expense total - their share)
-        const current = netMap.get(expense.paidBy) ?? 0;
-        netMap.set(expense.paidBy, current + (expense.amount - split.amount));
-      } else {
-        // Others owe their share
-        const payerCurrent = netMap.get(expense.paidBy) ?? 0;
-        // Actually, let's recalculate: payer gets +splitAmount from each non-payer
-        // Non-payer gets -splitAmount
-        const ownerCurrent = netMap.get(split.userId) ?? 0;
-        netMap.set(split.userId, ownerCurrent - split.amount);
-        netMap.set(expense.paidBy, payerCurrent + split.amount);
-      }
-    }
+    // Payer gets full credit for the amount they paid
+    const payerCurrent = netMap.get(expense.paidBy) ?? 0;
+    netMap.set(expense.paidBy, payerCurrent + expense.amount);
 
-    // Subtract payer's own split from payer's credit (they don't owe themselves)
-    const payerSplit = expense.splits.find((s) => s.userId === expense.paidBy);
-    if (payerSplit) {
-      const current = netMap.get(expense.paidBy) ?? 0;
-      netMap.set(expense.paidBy, current - payerSplit.amount);
+    // Everyone owes their share (including the payer — cancels out their own credit)
+    for (const split of expense.splits) {
+      const current = netMap.get(split.userId) ?? 0;
+      netMap.set(split.userId, current - split.amount);
     }
   }
 
-  // Factor in settlements
+  // Factor in settlements: settler's debt reduces, receiver's credit reduces
   const settlements = await prisma.settlement.findMany({
     where: { groupId },
   });
@@ -57,14 +43,30 @@ export async function getGroupBalances(groupId: string, userId: string) {
     netMap.set(s.toUser, toCurrent - s.amount);
   }
 
+  const members = await prisma.membership.findMany({
+    where: { groupId },
+    include: { user: { select: { id: true, name: true } } },
+  });
+  const nameMap = new Map(members.map((m) => [m.user.id, m.user.name]));
+
   const balances: Balance[] = Array.from(netMap.entries()).map(
-    ([userId, amount]) => ({
-      userId,
+    ([uid, amount]) => ({
+      userId: uid,
       amount: Math.round(amount * 100) / 100,
     })
   );
 
   const transactions = simplifyDebts(balances);
 
-  return { balances, transactions };
+  return {
+    balances: balances.map((b) => ({
+      ...b,
+      userName: nameMap.get(b.userId) ?? "Unknown",
+    })),
+    transactions: transactions.map((t) => ({
+      ...t,
+      fromName: nameMap.get(t.from) ?? "Unknown",
+      toName: nameMap.get(t.to) ?? "Unknown",
+    })),
+  };
 }

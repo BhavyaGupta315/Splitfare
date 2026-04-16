@@ -17,6 +17,7 @@ export const addMemberSchema = z.object({
 export const createExpenseSchema = z.object({
   groupId: z.string().uuid(),
   amount: z.number().positive("Amount must be positive"),
+  currency: z.string().length(3).toUpperCase().default("INR"),
   description: z.string().min(1, "Description is required").max(500),
   splitType: z.enum(["EQUAL", "EXACT", "PERCENT"]).default("EQUAL"),
   participants: z.array(z.string().uuid()).optional(),

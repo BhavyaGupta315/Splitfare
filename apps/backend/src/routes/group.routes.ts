@@ -9,6 +9,15 @@ const router = Router();
 
 router.use(requireAuth);
 
+router.get("/", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const groups = await groupService.getUserGroups(req.user!.userId);
+    res.json({ data: groups });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name } = createGroupSchema.parse(req.body);

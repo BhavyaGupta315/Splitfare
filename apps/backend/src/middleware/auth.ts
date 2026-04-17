@@ -12,8 +12,20 @@ declare global {
   }
 }
 
+function extractToken(req: Request): string | null {
+  const cookieToken = req.cookies?.token;
+  if (cookieToken) return cookieToken;
+
+  const header = req.headers.authorization;
+  if (header && header.startsWith("Bearer ")) {
+    return header.slice("Bearer ".length).trim();
+  }
+
+  return null;
+}
+
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {
-  const token = req.cookies?.token;
+  const token = extractToken(req);
 
   if (!token) {
     return next(new AppError("UNAUTHORIZED", "Authentication required", 401));

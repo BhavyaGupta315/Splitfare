@@ -1,9 +1,14 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { createGroupSchema, addMemberSchema } from "@splitfare/validation";
+import {
+  createGroupSchema,
+  addMemberSchema,
+  createSettlementSchema,
+} from "@splitfare/validation";
 import { requireAuth } from "../middleware/auth.js";
 import * as groupService from "../services/group.service.js";
 import * as expenseService from "../services/expense.service.js";
 import * as balanceService from "../services/balance.service.js";
+import * as settlementService from "../services/settlement.service.js";
 
 const router = Router();
 
@@ -78,6 +83,39 @@ router.get(
         req.user!.userId
       );
       res.json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+router.post(
+  "/:id/settlements",
+  async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+    try {
+      const { toUserId, amount } = createSettlementSchema.parse(req.body);
+      const settlement = await settlementService.createSettlement({
+        groupId: req.params.id,
+        fromUserId: req.user!.userId,
+        toUserId,
+        amount,
+      });
+      res.status(201).json({ data: settlement });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+router.get(
+  "/:id/settlements",
+  async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+    try {
+      const settlements = await settlementService.getGroupSettlements(
+        req.params.id,
+        req.user!.userId
+      );
+      res.json({ data: settlements });
     } catch (err) {
       next(err);
     }

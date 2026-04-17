@@ -103,3 +103,30 @@ export function getGroupBalances(groupId: string) {
     transactions: { from: string; fromName: string; to: string; toName: string; amount: number }[];
   }>(`/groups/${groupId}/balances`);
 }
+
+// Settlements
+export interface SettlementRecord {
+  id: string;
+  groupId: string;
+  fromUser: string;
+  toUser: string;
+  amount: number;
+  settledAt: string;
+  sender: { id: string; name: string; email: string };
+  receiver: { id: string; name: string; email: string };
+}
+
+export function createSettlement(
+  groupId: string,
+  toUserId: string,
+  amount: number
+) {
+  return request<SettlementRecord>(`/groups/${groupId}/settlements`, {
+    method: "POST",
+    body: JSON.stringify({ toUserId, amount }),
+  });
+}
+
+export function getGroupSettlements(groupId: string) {
+  return request<SettlementRecord[]>(`/groups/${groupId}/settlements`);
+}

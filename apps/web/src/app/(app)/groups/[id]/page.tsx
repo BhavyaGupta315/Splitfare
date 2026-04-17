@@ -33,6 +33,8 @@ interface BalanceData {
   transactions: { from: string; fromName: string; to: string; toName: string; amount: number }[];
 }
 
+type SettlementRow = api.SettlementRecord;
+
 export default function GroupDetailPage({
   params,
 }: {
@@ -43,6 +45,7 @@ export default function GroupDetailPage({
   const [group, setGroup] = useState<Group | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [balanceData, setBalanceData] = useState<BalanceData | null>(null);
+  const [settlements, setSettlements] = useState<SettlementRow[]>([]);
   const [tab, setTab] = useState<Tab>("expenses");
   const [loading, setLoading] = useState(true);
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -53,9 +56,16 @@ export default function GroupDetailPage({
   const fetchGroup = () => api.getGroup(id).then(setGroup);
   const fetchExpenses = () => api.getGroupExpenses(id).then(setExpenses);
   const fetchBalances = () => api.getGroupBalances(id).then(setBalanceData);
+  const fetchSettlements = () =>
+    api.getGroupSettlements(id).then(setSettlements);
 
   useEffect(() => {
-    Promise.all([fetchGroup(), fetchExpenses(), fetchBalances()])
+    Promise.all([
+      fetchGroup(),
+      fetchExpenses(),
+      fetchBalances(),
+      fetchSettlements(),
+    ])
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
@@ -80,6 +90,11 @@ export default function GroupDetailPage({
     setShowAddExpense(false);
     fetchExpenses();
     fetchBalances();
+  };
+
+  const handleSettle = async (toUserId: string, amount: number) => {
+    await api.createSettlement(id, toUserId, amount);
+    await Promise.all([fetchBalances(), fetchSettlements()]);
   };
 
   if (loading) {
@@ -146,7 +161,14 @@ export default function GroupDetailPage({
         {tab === "expenses" && (
           <ExpensesList expenses={expenses} currentUserId={user!.id} />
         )}
-        {tab === "balances" && <BalancesView data={balanceData} />}
+        {tab === "balances" && (
+          <BalancesView
+            data={balanceData}
+            settlements={settlements}
+            currentUserId={user!.id}
+            onSettle={handleSettle}
+          />
+        )}
         {tab === "members" && (
           <MembersView
             members={group.members}
@@ -212,8 +234,34 @@ function ExpensesList({
   );
 }
 
-function BalancesView({ data }: { data: BalanceData | null }) {
+function BalancesView({
+  data,
+  settlements,
+  currentUserId,
+  onSettle,
+}: {
+  data: BalanceData | null;
+  settlements: SettlementRow[];
+  currentUserId: string;
+  onSettle: (toUserId: string, amount: number) => Promise<void>;
+}) {
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   if (!data) return null;
+
+  const settle = async (key: string, toUserId: string, toName: string, amount: number) => {
+    if (!window.confirm(`Settle \u20B9${amount.toFixed(2)} with ${toName}?`)) return;
+    setPendingKey(key);
+    setError(null);
+    try {
+      await onSettle(toUserId, amount);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to settle");
+    } finally {
+      setPendingKey(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -253,21 +301,78 @@ function BalancesView({ data }: { data: BalanceData | null }) {
             Simplified Debts
           </h3>
           <div className="space-y-2">
-            {data.transactions.map((t, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between rounded-lg bg-zinc-50 px-4 py-3 dark:bg-zinc-800/50"
-              >
-                <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                  <span className="font-medium">{t.fromName}</span>
-                  {" owes "}
-                  <span className="font-medium">{t.toName}</span>
-                </span>
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                  {"\u20B9"}{t.amount.toFixed(2)}
-                </span>
-              </div>
-            ))}
+            {data.transactions.map((t, i) => {
+              const key = `${t.from}-${t.to}-${i}`;
+              const youOwe = t.from === currentUserId;
+              return (
+                <div
+                  key={key}
+                  className="flex items-center justify-between gap-3 rounded-lg bg-zinc-50 px-4 py-3 dark:bg-zinc-800/50"
+                >
+                  <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                    <span className="font-medium">
+                      {youOwe ? "You" : t.fromName}
+                    </span>
+                    {" owe"}
+                    {youOwe ? "" : "s"}{" "}
+                    <span className="font-medium">{t.toName}</span>
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                      {"\u20B9"}{t.amount.toFixed(2)}
+                    </span>
+                    {youOwe && (
+                      <button
+                        onClick={() => settle(key, t.to, t.toName, t.amount)}
+                        disabled={pendingKey === key}
+                        className="cursor-pointer rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                      >
+                        {pendingKey === key ? "Settling..." : "Settle"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {error && (
+            <p className="mt-2 text-sm text-red-500 dark:text-red-400">{error}</p>
+          )}
+        </div>
+      )}
+
+      {settlements.length > 0 && (
+        <div>
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Settlement History
+          </h3>
+          <div className="space-y-2">
+            {settlements.map((s) => {
+              const youSent = s.fromUser === currentUserId;
+              const youReceived = s.toUser === currentUserId;
+              const fromLabel = youSent ? "You" : s.sender.name;
+              const toLabel = youReceived ? "you" : s.receiver.name;
+              return (
+                <div
+                  key={s.id}
+                  className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-3 dark:border-zinc-800"
+                >
+                  <div>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                      <span className="font-medium">{fromLabel}</span>
+                      {" paid "}
+                      <span className="font-medium">{toLabel}</span>
+                    </p>
+                    <p className="mt-0.5 text-xs text-zinc-400">
+                      {new Date(s.settledAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    {"\u20B9"}{s.amount.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
